@@ -31,6 +31,31 @@ export async function sql<T = unknown>(
   return rows as T[];
 }
 
+export async function prepare<T = unknown, K extends string = string, Values extends readonly K[] = ReadonlyArray<K>>(
+  strings: TemplateStringsArray,
+  ...keys: Values
+): Promise<Values extends [{}, ...K[]] ? (values?: { [Key in Values[number]]: unknown; } | undefined) => Promise<T[]> : () => Promise<T[]>> {
+  const query = strings.join("?");
+  const statement = await (await pool.getConnection()).prepare(query);
+
+  if (keys && keys.length >= 1) {
+    return (async (values: {
+      [Key in typeof keys[number]]: unknown
+    }) => {
+      const params = keys.map((key) => values[key]);
+  
+      const [rows] = await statement.execute(params);
+      return rows as T[];
+    }) as any;
+  } else {
+    return (async () => {
+      const [rows] = await statement.execute([]);
+
+      return rows as T[];
+    }) as any;
+  }
+}
+
 export async function insert(table: string, data: Record<string, unknown>) {
   const columns = Object.keys(data);
   const values = Object.values(data);
